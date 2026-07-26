@@ -1,25 +1,23 @@
 <?xml version="1.0" encoding="utf-8"?>
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<LinearLayout 
+    xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:orientation="vertical"
     android:padding="16dp">
 
     <Button
-        android:id="@+id/btn_install"
+        android:id="@+id/btnInstall"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="INSTALL TOKPED.ZIP"
-        android:textSize="18sp"
-        android:padding="12dp"/>
+        android:text="INSTALL TOKPED.ZIP" />
 
     <CheckBox
-        android:id="@+id/cb_change_date"
-        android:layout_width="match_parent"
+        android:id="@+id/cbChangeDate"
+        android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:text="Mundurkan tanggal 1 hari"
-        android:checked="true"
-        android:padding="8dp"/>
+        android:checked="true" />
 
     <ScrollView
         android:id="@+id/scrollView"
@@ -27,12 +25,13 @@
         android:layout_height="0dp"
         android:layout_weight="1"
         android:layout_marginTop="8dp">
+
         <TextView
-            android:id="@+id/tv_log"
+            android:id="@+id/tvLog"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="Log:"
             android:textSize="12sp"
-            android:fontFamily="monospace" />
+            android:fontFamily="monospace"
+            android:textIsSelectable="true" />
     </ScrollView>
 </LinearLayout>
