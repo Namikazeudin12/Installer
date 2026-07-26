@@ -13,6 +13,14 @@
         android:textSize="18sp"
         android:padding="12dp"/>
 
+    <CheckBox
+        android:id="@+id/cb_change_date"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Mundurkan tanggal 1 hari"
+        android:checked="true"
+        android:padding="8dp"/>
+
     <ScrollView
         android:id="@+id/scrollView"
         android:layout_width="match_parent"
