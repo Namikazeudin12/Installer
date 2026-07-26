@@ -6,6 +6,7 @@ import android.os.Bundle;
 import android.os.Environment;
 import android.view.View;
 import android.widget.Button;
+import android.widget.CheckBox;
 import android.widget.ScrollView;
 import android.widget.TextView;
 import androidx.appcompat.app.AppCompatActivity;
@@ -25,6 +26,7 @@ public class MainActivity extends AppCompatActivity {
     private Button btnInstall;
     private TextView tvLog;
     private ScrollView scrollView;
+    private CheckBox cbChangeDate;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -34,6 +36,7 @@ public class MainActivity extends AppCompatActivity {
         btnInstall = findViewById(R.id.btn_install);
         tvLog = findViewById(R.id.tv_log);
         scrollView = findViewById(R.id.scrollView);
+        cbChangeDate = findViewById(R.id.cb_change_date);
 
         btnInstall.setOnClickListener(v -> new InstallTask().execute(DEFAULT_URL));
     }
@@ -86,17 +89,27 @@ public class MainActivity extends AppCompatActivity {
                     File xapkOut = new File(extractRoot, xapk.getName() + "_out");
                     xapkOut.mkdirs();
                     unzip(xapk, xapkOut);
-                    processXAPKDirectory(xapkOut);
+                    if (!processXAPKDirectory(xapkOut)) {
+                        publishProgress("❌ Gagal instal " + xapk.getName());
+                        return false;
+                    }
+                    publishProgress("✅ " + xapk.getName() + " terpasang.");
                 }
 
-                publishProgress("Mengubah tanggal...");
-                runRootCommand(
-                    "settings put global auto_time 0\n" +
-                    "settings put global auto_time_zone 0\n" +
-                    "date $(date -d '1 day ago' '+%m%d%H%M%Y.%S')\n"
-                );
+                // Mundurkan tanggal jika checkbox dicentang
+                boolean changeDate = cbChangeDate.isChecked();
+                if (changeDate) {
+                    publishProgress("Mengubah tanggal mundur 1 hari...");
+                    runRootCommand(
+                        "settings put global auto_time 0\n" +
+                        "settings put global auto_time_zone 0\n" +
+                        "date $(date -d '1 day ago' '+%m%d%H%M%Y.%S')\n"
+                    );
+                    publishProgress("✅ Tanggal diubah.");
+                } else {
+                    publishProgress("ℹ️ Tanggal tidak diubah (checkbox tidak dicentang).");
+                }
 
-                publishProgress("✅ Semua selesai. Tanggal mundur 1 hari.");
                 deleteRecursive(cacheDir);
                 return true;
             } catch (Exception e) {
@@ -113,7 +126,8 @@ public class MainActivity extends AppCompatActivity {
         @Override
         protected void onPostExecute(Boolean success) {
             dialog.dismiss();
-            if (!success) log("Gagal.");
+            if (success) log("Proses selesai.");
+            else log("Gagal.");
         }
 
         private void downloadFile(String urlStr, File dest) throws IOException {
@@ -166,67 +180,94 @@ public class MainActivity extends AppCompatActivity {
             }
         }
 
-        private void processXAPKDirectory(File extractedDir) throws IOException, InterruptedException {
-            List<File> apks = new ArrayList<>();
-            findAPKFiles(extractedDir, apks);
-            if (apks.isEmpty()) {
-                publishProgress("   Tidak ada APK.");
-                return;
-            }
-            if (apks.size() == 1) {
-                runRootCommand("pm install -r \"" + apks.get(0).getAbsolutePath() + "\"\n");
-            } else {
-                long totalSize = 0;
-                for (File a : apks) totalSize += a.length();
-                String sessionCmd = "pm install-create -r -t -S " + totalSize + " | grep -o '[0-9]*'\n";
-                Process p = Runtime.getRuntime().exec("su");
-                DataOutputStream os = new DataOutputStream(p.getOutputStream());
-                os.writeBytes(sessionCmd);
-                os.writeBytes("exit\n");
-                os.flush();
-                BufferedReader reader = new BufferedReader(new InputStreamReader(p.getInputStream()));
-                String line;
-                String sessionId = null;
-                while ((line = reader.readLine()) != null) {
-                    line = line.trim();
-                    if (!line.isEmpty() && line.matches("\\d+")) {
-                        sessionId = line;
-                        break;
-                    }
+        private boolean processXAPKDirectory(File extractedDir) {
+            try {
+                List<File> apks = new ArrayList<>();
+                findAPKFiles(extractedDir, apks);
+                if (apks.isEmpty()) {
+                    publishProgress("   Tidak ada APK.");
+                    return false;
                 }
-                p.waitFor();
-                if (sessionId == null) throw new IOException("Gagal membuat session install.");
-                for (File a : apks) {
-                    String writeCmd = "cat \"" + a.getAbsolutePath() + "\" | pm install-write -S " +
-                        a.length() + " " + sessionId + " \"" + a.getName() + "\" -\n";
-                    runRootCommand(writeCmd);
-                }
-                runRootCommand("pm install-commit " + sessionId + "\n");
-            }
 
-            File obbTarget = new File(Environment.getExternalStorageDirectory(), "Android/obb");
-            File[] subDirs = extractedDir.listFiles(File::isDirectory);
-            if (subDirs != null) {
-                for (File sub : subDirs) {
-                    File obbDir = new File(sub, "obb");
-                    if (obbDir.exists() && obbDir.isDirectory()) {
-                        String pkg = sub.getName();
-                        File destObb = new File(obbTarget, pkg);
-                        copyDirectory(obbDir, destObb);
-                        publishProgress("   OBB disalin untuk " + pkg);
+                publishProgress("   Menginstal " + apks.size() + " APK...");
+                if (apks.size() == 1) {
+                    String path = apks.get(0).getAbsolutePath();
+                    publishProgress("   Single APK: " + path);
+                    String result = runRootCommandWithOutput("pm install -r -d \"" + path + "\"");
+                    publishProgress("   Hasil: " + result);
+                    if (result.contains("Failure")) {
+                        publishProgress("   ❌ Instalasi gagal: " + result);
+                        return false;
+                    }
+                } else {
+                    // Split APK
+                    long totalSize = 0;
+                    for (File a : apks) totalSize += a.length();
+                    String sessionCmd = "pm install-create -r -t -S " + totalSize;
+                    publishProgress("   Membuat session: " + sessionCmd);
+                    String sessionOutput = runRootCommandWithOutput(sessionCmd);
+                    publishProgress("   Output session: " + sessionOutput);
+                    // Cari session ID (angka)
+                    String sessionId = null;
+                    for (String part : sessionOutput.split("\\s+")) {
+                        if (part.matches("\\d+")) {
+                            sessionId = part;
+                            break;
+                        }
+                    }
+                    if (sessionId == null) {
+                        publishProgress("   ❌ Tidak bisa membuat session install.");
+                        return false;
+                    }
+                    publishProgress("   Session ID: " + sessionId);
+                    for (File a : apks) {
+                        String writeCmd = "cat \"" + a.getAbsolutePath() + "\" | pm install-write -S " +
+                            a.length() + " " + sessionId + " \"" + a.getName() + "\" -";
+                        publishProgress("   Write: " + a.getName());
+                        String writeResult = runRootCommandWithOutput(writeCmd);
+                        if (!writeResult.contains("Success")) {
+                            publishProgress("   ❌ Gagal write: " + writeResult);
+                            return false;
+                        }
+                    }
+                    String commitCmd = "pm install-commit " + sessionId;
+                    String commitResult = runRootCommandWithOutput(commitCmd);
+                    publishProgress("   Commit: " + commitResult);
+                    if (commitResult.contains("Failure")) {
+                        publishProgress("   ❌ Commit gagal: " + commitResult);
+                        return false;
                     }
                 }
-            }
-            File androidObb = new File(extractedDir, "Android/obb");
-            if (androidObb.exists() && androidObb.isDirectory()) {
-                File[] pkgs = androidObb.listFiles(File::isDirectory);
-                if (pkgs != null) {
-                    for (File pkgDir : pkgs) {
-                        File dest = new File(obbTarget, pkgDir.getName());
-                        copyDirectory(pkgDir, dest);
-                        publishProgress("   OBB disalin untuk " + pkgDir.getName());
+
+                // Salin OBB
+                File obbTarget = new File(Environment.getExternalStorageDirectory(), "Android/obb");
+                File[] subDirs = extractedDir.listFiles(File::isDirectory);
+                if (subDirs != null) {
+                    for (File sub : subDirs) {
+                        File obbDir = new File(sub, "obb");
+                        if (obbDir.exists() && obbDir.isDirectory()) {
+                            String pkg = sub.getName();
+                            File destObb = new File(obbTarget, pkg);
+                            copyDirectory(obbDir, destObb);
+                            publishProgress("   OBB disalin untuk " + pkg);
+                        }
                     }
                 }
+                File androidObb = new File(extractedDir, "Android/obb");
+                if (androidObb.exists() && androidObb.isDirectory()) {
+                    File[] pkgs = androidObb.listFiles(File::isDirectory);
+                    if (pkgs != null) {
+                        for (File pkgDir : pkgs) {
+                            File dest = new File(obbTarget, pkgDir.getName());
+                            copyDirectory(pkgDir, dest);
+                            publishProgress("   OBB disalin untuk " + pkgDir.getName());
+                        }
+                    }
+                }
+                return true;
+            } catch (Exception e) {
+                publishProgress("   Exception: " + e.getMessage());
+                return false;
             }
         }
 
@@ -237,6 +278,19 @@ public class MainActivity extends AppCompatActivity {
                 if (f.isDirectory()) findAPKFiles(f, result);
                 else if (f.getName().toLowerCase().endsWith(".apk")) result.add(f);
             }
+        }
+
+        private String runRootCommandWithOutput(String cmd) throws IOException, InterruptedException {
+            Process p = Runtime.getRuntime().exec("su");
+            DataOutputStream os = new DataOutputStream(p.getOutputStream());
+            os.writeBytes(cmd + "\n");
+            os.writeBytes("exit\n");
+            os.flush();
+            // Baca output (gabungkan stdout dan stderr)
+            java.util.Scanner s = new java.util.Scanner(p.getInputStream()).useDelimiter("\\A");
+            String output = s.hasNext() ? s.next() : "";
+            p.waitFor();
+            return output.trim();
         }
 
         private void runRootCommand(String cmd) throws IOException, InterruptedException {
@@ -275,4 +329,4 @@ public class MainActivity extends AppCompatActivity {
             fileOrDirectory.delete();
         }
     }
-                }
+            }
