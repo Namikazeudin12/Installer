@@ -4,6 +4,7 @@
     android:layout_height="match_parent"
     android:orientation="vertical"
     android:padding="16dp">
+
     <Button
         android:id="@+id/btn_install"
         android:layout_width="match_parent"
@@ -11,7 +12,9 @@
         android:text="INSTALL TOKPED.ZIP"
         android:textSize="18sp"
         android:padding="12dp"/>
+
     <ScrollView
+        android:id="@+id/scrollView"
         android:layout_width="match_parent"
         android:layout_height="0dp"
         android:layout_weight="1"
