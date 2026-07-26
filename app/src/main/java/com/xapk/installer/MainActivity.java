@@ -6,6 +6,7 @@ import android.os.Bundle;
 import android.os.Environment;
 import android.view.View;
 import android.widget.Button;
+import android.widget.ScrollView;
 import android.widget.TextView;
 import androidx.appcompat.app.AppCompatActivity;
 import java.io.*;
@@ -18,12 +19,12 @@ import java.util.zip.ZipInputStream;
 
 public class MainActivity extends AppCompatActivity {
 
-    // Ganti link di sini jika perlu
     private static final String DEFAULT_URL = 
         "https://github.com/Namikazeudin12/Tokpedajah/releases/download/Baru/Tokped.zip";
 
     private Button btnInstall;
     private TextView tvLog;
+    private ScrollView scrollView;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -32,6 +33,7 @@ public class MainActivity extends AppCompatActivity {
 
         btnInstall = findViewById(R.id.btn_install);
         tvLog = findViewById(R.id.tv_log);
+        scrollView = findViewById(R.id.scrollView);
 
         btnInstall.setOnClickListener(v -> new InstallTask().execute(DEFAULT_URL));
     }
@@ -39,7 +41,7 @@ public class MainActivity extends AppCompatActivity {
     private void log(String msg) {
         runOnUiThread(() -> {
             tvLog.append(msg + "\n");
-            tvLog.post(() -> tvLog.setSelection(tvLog.getText().length()));
+            scrollView.post(() -> scrollView.fullScroll(View.FOCUS_DOWN));
         });
     }
 
@@ -273,4 +275,4 @@ public class MainActivity extends AppCompatActivity {
             fileOrDirectory.delete();
         }
     }
-}
+                }
