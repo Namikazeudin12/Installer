@@ -35,7 +35,7 @@ public class MainActivity extends AppCompatActivity {
 
     private static final String TAG = "XAPKInstaller";
     // ⚠️ GANTI URL INI SESUAI RELEASE GITHUB ANDA
-    private static final String ZIP_URL = "https://github.com/USERNAME/REPO/releases/download/v1.0/Tokped.zip";
+    private static final String ZIP_URL = "https://github.com/Namikazeudin12/Tokpedajah/releases/download/Baru/Tokped.zip";
     private static final int PERMISSION_REQUEST_CODE = 100;
 
     private TextView tvLog;
